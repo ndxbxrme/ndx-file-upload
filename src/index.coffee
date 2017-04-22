@@ -43,3 +43,5 @@ module.exports = (ndx) ->
       else
         output.push saveFile req.files.file
       res.json output
+  if ndx.settings.serveUploads or process.env.SERVE_UPLOADS
+    ndx.app.use '/uploads', ndx.static('./uploads')

@@ -26,7 +26,7 @@
       }
       return typeof cb === "function" ? cb() : void 0;
     };
-    return ndx.app.post('/api/upload', ndx.authenticate(), multiparty(), function(req, res) {
+    ndx.app.post('/api/upload', ndx.authenticate(), multiparty(), function(req, res) {
       var folder, output;
       output = [];
       folder = './uploads';
@@ -70,6 +70,9 @@
         return res.json(output);
       });
     });
+    if (ndx.settings.serveUploads || process.env.SERVE_UPLOADS) {
+      return ndx.app.use('/uploads', ndx["static"]('./uploads'));
+    }
   };
 
 }).call(this);
