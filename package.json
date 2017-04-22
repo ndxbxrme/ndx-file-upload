@@ -1,0 +1,27 @@
+{
+  "name": "ndx-file-upload",
+  "version": "0.0.2",
+  "description": "file uploader for ndx-framework",
+  "main": "build/index.js",
+  "scripts": {
+    "test": "node build/test.js"
+  },
+  "ndx": true,
+  "loadOrder": 5,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ndxbxrme/ndx-file-upload"
+  },
+  "author": "ndxbxrme",
+  "license": "MIT",
+  "homepage": "https://github.com/ndxbxrme/ndx-file-upload",
+  "devDependencies": {
+    "grunt": "^1.0.1",
+    "grunt-cli": "^1.2.0",
+    "grunt-contrib-clean": "^1.1.0",
+    "grunt-contrib-coffee": "^1.0.0",
+    "grunt-contrib-nodeunit": "^1.0.0",
+    "grunt-contrib-watch": "^1.0.0",
+    "load-grunt-tasks": "^3.5.2"
+  }
+}
