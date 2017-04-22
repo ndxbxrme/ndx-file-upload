@@ -28,7 +28,7 @@ module.exports = (ndx) ->
           fs.unlinkSync file.path
         outobj =
           filename: filename
-          path: outpath.replace /\\/g, /\//
+          path: outpath.replace /\\/g, '/'
           originalFilename: file.originalFilename
           type: file.type
           size: file.size
