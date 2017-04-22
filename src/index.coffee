@@ -31,6 +31,7 @@ module.exports = (ndx) ->
           path: outpath.replace /\\/g, '/'
           originalFilename: file.originalFilename
           type: file.type
+          basetype: file.type.replace /\/.*/, ''
           size: file.size
           date: new Date().valueOf()
           ext: path.extname(file.originalFilename).replace /^\./, ''
