@@ -70,7 +70,7 @@
         return res.json(output);
       });
     });
-    if (ndx.settings.serveUploads || process.env.SERVE_UPLOADS) {
+    if (ndx.settings.SERVE_UPLOADS || process.env.SERVE_UPLOADS) {
       return ndx.app.use('/uploads', ndx["static"]('./uploads'));
     }
   };
