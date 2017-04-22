@@ -26,7 +26,7 @@
       }
       return typeof cb === "function" ? cb() : void 0;
     };
-    return ndx.app.post('/api/uploads', multiparty(), function(req, res) {
+    return ndx.app.post('/api/upload', ndx.authenticate(), multiparty(), function(req, res) {
       var folder, output;
       output = [];
       folder = './uploads';

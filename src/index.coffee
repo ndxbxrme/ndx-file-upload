@@ -12,7 +12,7 @@ module.exports = (ndx) ->
       for callback in callbacks[name]
         callback obj
     cb?()
-  ndx.app.post '/api/uploads', multiparty(), (req, res) ->
+  ndx.app.post '/api/upload', ndx.authenticate(), multiparty(), (req, res) ->
     output = []
     folder = './uploads'
     if req.body.folder
