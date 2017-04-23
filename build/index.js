@@ -71,6 +71,14 @@
         return res.json(output);
       });
     });
+    ndx.fileUpload = {
+      on: function(name, callback) {
+        return callbacks[name].push(callback);
+      },
+      off: function(name, callback) {
+        return callbacks[name].splice(callbacks[name].indexOf(callback), 1);
+      }
+    };
     if (ndx.settings.SERVE_UPLOADS || process.env.SERVE_UPLOADS) {
       return ndx.app.use('/uploads', ndx["static"]('./uploads'));
     }

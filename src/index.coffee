@@ -44,5 +44,10 @@ module.exports = (ndx) ->
       else
         output.push saveFile req.files.file
       res.json output
+  ndx.fileUpload =
+    on: (name, callback) ->
+      callbacks[name].push callback
+    off: (name, callback) ->
+      callbacks[name].splice callbacks[name].indexOf(callback), 1
   if ndx.settings.SERVE_UPLOADS or process.env.SERVE_UPLOADS
     ndx.app.use '/uploads', ndx.static('./uploads')
