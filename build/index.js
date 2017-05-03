@@ -65,8 +65,10 @@
             file = ref[i];
             output.push(saveFile(file));
           }
-        } else {
+        } else if (req.files.file) {
           output.push(saveFile(req.files.file));
+        } else {
+          console.log('no file');
         }
         return res.json(output);
       });

@@ -41,8 +41,10 @@ module.exports = (ndx) ->
       if Object.prototype.toString.call(req.files.file) is '[object Array]'
         for file in req.files.file
           output.push saveFile file
-      else
+      else if req.files.file
         output.push saveFile req.files.file
+      else
+        console.log 'no file'
       res.json output
   ndx.fileUpload =
     on: (name, callback) ->
