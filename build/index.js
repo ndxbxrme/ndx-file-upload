@@ -74,6 +74,15 @@
           rs.on('end', function() {
             return fs.unlinkSync(file.path);
           });
+          rs.on('error', function(e) {
+            return console.log(e);
+          });
+          encrypt.on('error', function(e) {
+            return console.log(e);
+          });
+          gzip.on('error', function(e) {
+            return console.log(e);
+          });
           outobj = {
             filename: filename,
             path: outpath.replace(/\\/g, '/'),
@@ -123,6 +132,15 @@
           st = st.pipe(gunzip);
         }
         st.pipe(res);
+        st.on('error', function(e) {
+          return console.log(e);
+        });
+        decrypt.on('error', function(e) {
+          return console.log(e);
+        });
+        gunzip.on('error', function(e) {
+          return console.log(e);
+        });
         return syncCallback('download', {
           user: ndx.user,
           obj: document

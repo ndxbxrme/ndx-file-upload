@@ -47,6 +47,12 @@ module.exports = (ndx) ->
         st.pipe ws
         rs.on 'end', ->
           fs.unlinkSync file.path
+        rs.on 'error', (e) ->
+          console.log e
+        encrypt.on 'error', (e) ->
+          console.log e
+        gzip.on 'error', (e) ->
+          console.log e
         outobj =
           filename: filename
           path: outpath.replace /\\/g, '/'
@@ -84,6 +90,12 @@ module.exports = (ndx) ->
       if dozip
         st = st.pipe gunzip
       st.pipe res
+      st.on 'error', (e) ->
+        console.log e
+      decrypt.on 'error', (e) ->
+        console.log e
+      gunzip.on 'error', (e) ->
+        console.log e
       syncCallback 'download', 
         user: ndx.user
         obj: document
