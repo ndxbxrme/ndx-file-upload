@@ -1,7 +1,9 @@
 # ndx-file-upload  
 file upload/download functionality for ndx-framework apps  
 all files are encrypted and zipped by default  
-```npm install --save ndx-file-upload```  
+```bash
+npm install --save ndx-file-upload
+```  
 ### example
 ```bash
 bower install --save ng-file-upload
