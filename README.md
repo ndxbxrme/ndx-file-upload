@@ -25,7 +25,6 @@ angular.module 'filedownload'
         url: '/api/upload'
         data:
           file: files
-          user: $scope.auth.getUser()
       .then (response) ->
         if response.data
           for document in response.data
@@ -35,7 +34,7 @@ angular.module 'filedownload'
       , (progress) ->
         $scope.uploadProgress = Math.min 100, parseInt(100.0 * progress.loaded / progress.total)
   $scope.makeDownloadUrl = (document) ->
-    '/api/download/' + btoa "#{JSON.stringify({path:document.path,filename:document.originalFilename})}"
+    '/api/download/' + btoa JSON.stringify({path:document.path,filename:document.originalFilename})
 ```
 `src/client/routes/dashboard/dashboard.jade`
 ```jade
