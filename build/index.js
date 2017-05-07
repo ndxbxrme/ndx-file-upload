@@ -133,7 +133,7 @@
         return next(e);
       }
     });
-    ndx.fileUpload = {
+    return ndx.fileUpload = {
       on: function(name, callback) {
         return callbacks[name].push(callback);
       },
@@ -169,9 +169,6 @@
         });
       }
     };
-    if (ndx.settings.SERVE_UPLOADS || process.env.SERVE_UPLOADS) {
-      return ndx.app.use('/uploads', ndx["static"]('./uploads'));
-    }
   };
 
 }).call(this);

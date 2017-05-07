@@ -115,6 +115,3 @@ module.exports = (ndx) ->
         obj:
           filename: filename
           mimetype: mimetype
-      
-  if ndx.settings.SERVE_UPLOADS or process.env.SERVE_UPLOADS
-    ndx.app.use '/uploads', ndx.static('./uploads')
