@@ -57,14 +57,11 @@ register a callback
 #### `ndx.fileUpload.off(name, callback)`  
 deregister a callback  
 #### `ndx.fileUpload.download(res, data, filename)` 
-download arbitrary data to the user, eg
+download arbitrary data to the user, eg  
 `src/server/app.coffee`
 ```coffeescript
 require 'ndx-server'
-.config
-  database: 'db'
-  tables: ['users']
-  localStorage: './data'
+.config()
 .use (ndx) ->
   ndx.app.get '/api/download-csv', (req, res) ->
     ndx.fileUpload.download res, '1,2,3\n4,5,6\n7,8,9', 'mythings.csv'
