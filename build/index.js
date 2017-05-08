@@ -1,6 +1,6 @@
 (function() {
   'use strict';
-  var algorithm, atob, crypto, fs, mime, mkdirp, multiparty, path, zlib;
+  var AWS, atob, crypto, fs, mime, mkdirp, multiparty, path, zlib;
 
   fs = require('fs');
 
@@ -18,10 +18,17 @@
 
   zlib = require('zlib');
 
-  algorithm = 'aes-256-ctr';
+  AWS = require('aws-sdk');
 
   module.exports = function(ndx) {
-    var callbacks, doencrypt, dozip, syncCallback;
+    var S3, algorithm, callbacks, doencrypt, dozip, s3Stream, syncCallback;
+    algorithm = ndx.settings.ENCRYPTION_ALGORITHM || 'aes-256-ctr';
+    AWS.config.bucket = ndx.settings.AWS_BUCKET;
+    AWS.config.region = ndx.settings.AWS_REGION;
+    AWS.config.accessKeyId = ndx.settings.AWS_ID;
+    AWS.config.secretAccessKey = ndx.settings.AWS_KEY;
+    S3 = new AWS.S3();
+    s3Stream = require('s3-upload-stream')(S3);
     doencrypt = !ndx.settings.DO_NOT_ENCRYPT;
     dozip = !ndx.settings.DO_NOT_ENCRYPT;
     callbacks = {
@@ -42,7 +49,7 @@
     ndx.app.post('/api/upload', ndx.authenticate(), multiparty(), function(req, res) {
       var folder, output;
       output = [];
-      folder = './uploads';
+      folder = 'uploads';
       if (req.body.folder) {
         folder = path.join(folder, req.body.folder);
       }
@@ -55,7 +62,6 @@
           encrypt = crypto.createCipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
           gzip = zlib.createGzip();
           rs = fs.createReadStream(file.path);
-          ws = fs.createWriteStream(outpath);
           st = null;
           if (dozip) {
             st = rs.pipe(gzip);
@@ -69,6 +75,15 @@
           }
           if (!st) {
             st = rs;
+          }
+          ws = null;
+          if (ndx.settings.AWS_OK) {
+            ws = s3Stream.upload({
+              Bucket: AWS.config.bucket,
+              Key: outpath.replace(/\\/g, '/')
+            });
+          } else {
+            ws = fs.createWriteStream(outpath);
           }
           st.pipe(ws);
           rs.on('end', function() {
@@ -116,16 +131,23 @@
       });
     });
     ndx.app.get('/api/download/:data', ndx.authenticate(), function(req, res, next) {
-      var decrypt, document, e, error, filestream, gunzip, mimetype, st;
+      var decrypt, document, e, error, gunzip, mimetype, st;
       try {
         document = JSON.parse(atob(req.params.data));
         mimetype = mime.lookup(document.path);
         res.setHeader('Content-disposition', 'attachment; filename=' + document.filename);
         res.setHeader('Content-type', mimetype);
-        filestream = fs.createReadStream(document.path);
         decrypt = crypto.createDecipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
         gunzip = zlib.createGunzip();
-        st = filestream;
+        st = null;
+        if (ndx.settings.AWS_OK) {
+          st = S3.getObject({
+            Bucket: AWS.config.bucket,
+            Key: document.path
+          }).createReadStream();
+        } else {
+          st = fs.createReadStream(document.path);
+        }
         if (doencrypt) {
           st = st.pipe(decrypt);
         }
