@@ -91,7 +91,8 @@
             basetype: file.type.replace(/\/.*/, ''),
             size: file.size,
             date: new Date().valueOf(),
-            ext: path.extname(file.originalFilename).replace(/^\./, '')
+            ext: path.extname(file.originalFilename).replace(/^\./, ''),
+            tags: req.body.tags
           };
           ndx.extend(outobj, req.body);
           syncCallback('upload', {
