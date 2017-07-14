@@ -12,10 +12,11 @@ async = require 'async'
 
 module.exports = (ndx) ->
   algorithm = ndx.settings.ENCRYPTION_ALGORITHM or 'aes-256-ctr'
-  AWS.config.bucket = ndx.settings.AWS_BUCKET
-  AWS.config.region = ndx.settings.AWS_REGION
-  AWS.config.accessKeyId = ndx.settings.AWS_ID
-  AWS.config.secretAccessKey = ndx.settings.AWS_KEY
+  useAWS = ndx.settings.FILEUPLOAD_AWS or process.env.FILEUPLOAD_AWS
+  AWS.config.bucket = ndx.settings.FILEUPLOAD_AWS_BUCKET or process.env.FILEUPLOAD_AWS_BUCKET or ndx.settings.AWS_BUCKET
+  AWS.config.region = ndx.settings.FILEUPLOAD_AWS_REGION or process.env.FILEUPLOAD_AWS_REGION or ndx.settings.AWS_REGION or 'us-east-1'
+  AWS.config.accessKeyId = ndx.settings.FILEUPLOAD_AWS_ID or process.env.FILEUPLOAD_AWS_ID or ndx.settings.AWS_ID
+  AWS.config.secretAccessKey = ndx.settings.FILEUPLOAD_AWS_KEY or process.env.FILEUPLOAD_AWS_KEY or ndx.settings.AWS_KEY
   S3 = new AWS.S3()
   s3Stream = require('s3-upload-stream') S3
   doencrypt = !ndx.settings.DO_NOT_ENCRYPT
@@ -52,7 +53,7 @@ module.exports = (ndx) ->
           if not st
             st = rs
           ws = null
-          if ndx.settings.AWS_OK
+          if useAWS
             ws = s3Stream.upload
               Bucket: AWS.config.bucket
               Key: outpath.replace /\\/g, '/'
@@ -101,7 +102,7 @@ module.exports = (ndx) ->
         decrypt = crypto.createDecipher algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
         gunzip = zlib.createGunzip()
         st = null
-        if ndx.settings.AWS_OK
+        if useAWS
           st = S3.getObject
             Bucket: AWS.config.bucket
             Key: document.path

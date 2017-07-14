@@ -23,12 +23,13 @@
   async = require('async');
 
   module.exports = function(ndx) {
-    var S3, algorithm, callbacks, doencrypt, dozip, s3Stream, syncCallback;
+    var S3, algorithm, callbacks, doencrypt, dozip, s3Stream, syncCallback, useAWS;
     algorithm = ndx.settings.ENCRYPTION_ALGORITHM || 'aes-256-ctr';
-    AWS.config.bucket = ndx.settings.AWS_BUCKET;
-    AWS.config.region = ndx.settings.AWS_REGION;
-    AWS.config.accessKeyId = ndx.settings.AWS_ID;
-    AWS.config.secretAccessKey = ndx.settings.AWS_KEY;
+    useAWS = ndx.settings.FILEUPLOAD_AWS || process.env.FILEUPLOAD_AWS;
+    AWS.config.bucket = ndx.settings.FILEUPLOAD_AWS_BUCKET || process.env.FILEUPLOAD_AWS_BUCKET || ndx.settings.AWS_BUCKET;
+    AWS.config.region = ndx.settings.FILEUPLOAD_AWS_REGION || process.env.FILEUPLOAD_AWS_REGION || ndx.settings.AWS_REGION || 'us-east-1';
+    AWS.config.accessKeyId = ndx.settings.FILEUPLOAD_AWS_ID || process.env.FILEUPLOAD_AWS_ID || ndx.settings.AWS_ID;
+    AWS.config.secretAccessKey = ndx.settings.FILEUPLOAD_AWS_KEY || process.env.FILEUPLOAD_AWS_KEY || ndx.settings.AWS_KEY;
     S3 = new AWS.S3();
     s3Stream = require('s3-upload-stream')(S3);
     doencrypt = !ndx.settings.DO_NOT_ENCRYPT;
@@ -80,7 +81,7 @@
               st = rs;
             }
             ws = null;
-            if (ndx.settings.AWS_OK) {
+            if (useAWS) {
               ws = s3Stream.upload({
                 Bucket: AWS.config.bucket,
                 Key: outpath.replace(/\\/g, '/')
@@ -143,7 +144,7 @@
           decrypt = crypto.createDecipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
           gunzip = zlib.createGunzip();
           st = null;
-          if (ndx.settings.AWS_OK) {
+          if (useAWS) {
             st = S3.getObject({
               Bucket: AWS.config.bucket,
               Key: document.path
