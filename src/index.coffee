@@ -17,6 +17,7 @@ module.exports = (ndx) ->
   AWS.config.region = ndx.settings.FILEUPLOAD_AWS_REGION or process.env.FILEUPLOAD_AWS_REGION or ndx.settings.AWS_REGION or 'us-east-1'
   AWS.config.accessKeyId = ndx.settings.FILEUPLOAD_AWS_ID or process.env.FILEUPLOAD_AWS_ID or ndx.settings.AWS_ID
   AWS.config.secretAccessKey = ndx.settings.FILEUPLOAD_AWS_KEY or process.env.FILEUPLOAD_AWS_KEY or ndx.settings.AWS_KEY
+  awsPrefix = ndx.settings.FILEUPLOAD_AWS_PREFIX or process.env.FILEUPLOAD_AWS_PREFIX or ndx.settings.AWS_PREFIX or process.env.AWS_PREFIX or ''
   S3 = new AWS.S3()
   s3Stream = require('s3-upload-stream') S3
   doencrypt = !ndx.settings.DO_NOT_ENCRYPT
@@ -30,6 +31,7 @@ module.exports = (ndx) ->
         callback obj
     cb?()
   ndx.app.post '/api/upload', ndx.authenticate(), multiparty(), (req, res) ->
+    console.log 'upload'
     ((user) ->
       output = []
       folder = 'uploads'
@@ -37,60 +39,65 @@ module.exports = (ndx) ->
         folder = path.join folder, req.body.folder
       mkdirp folder, (err) ->
         saveFile = (file, callback) ->
-          filename = ndx.generateID(12) + path.extname(file.originalFilename)
-          outpath = path.join(folder, filename)
-          encrypt = crypto.createCipher algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
-          gzip = zlib.createGzip()
-          rs = fs.createReadStream file.path
-          st = null
-          if dozip
-            st = rs.pipe gzip
-          if doencrypt
-            if st
-              st = st.pipe encrypt
+          if file
+            filename = ndx.generateID(12) + path.extname(file.originalFilename)
+            outpath = path.join(folder, filename)
+            encrypt = crypto.createCipher algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
+            gzip = zlib.createGzip()
+            rs = fs.createReadStream file.path
+            st = null
+            if dozip
+              st = rs.pipe gzip
+            if doencrypt
+              if st
+                st = st.pipe encrypt
+              else
+                st = rs.pipe encrypt
+            if not st
+              st = rs
+            ws = null
+            if useAWS
+              ws = s3Stream.upload
+                Bucket: AWS.config.bucket
+                Key: awsPrefix + outpath.replace /\\/g, '/'
             else
-              st = rs.pipe encrypt
-          if not st
-            st = rs
-          ws = null
-          if useAWS
-            ws = s3Stream.upload
-              Bucket: AWS.config.bucket
-              Key: outpath.replace /\\/g, '/'
+              ws = fs.createWriteStream outpath
+            st.pipe ws
+            rs.on 'end', ->
+              fs.unlinkSync file.path
+              outobj =
+                filename: filename
+                path: awsPrefix + outpath.replace /\\/g, '/'
+                originalFilename: file.originalFilename
+                type: file.type
+                basetype: file.type.replace /\/.*/, ''
+                size: file.size
+                date: new Date().valueOf()
+                ext: path.extname(file.originalFilename).replace /^\./, ''
+                tags: req.body.tags
+              ndx.extend outobj, req.body
+              callback null, outobj
+              syncCallback 'upload', 
+                user: user
+                obj: outobj
+            rs.on 'error', (e) ->
+              callback e, null
+            encrypt.on 'error', (e) ->
+              console.log e
+            gzip.on 'error', (e) ->
+              console.log e
           else
-            ws = fs.createWriteStream outpath
-          st.pipe ws
-          rs.on 'end', ->
-            fs.unlinkSync file.path
-            outobj =
-              filename: filename
-              path: outpath.replace /\\/g, '/'
-              originalFilename: file.originalFilename
-              type: file.type
-              basetype: file.type.replace /\/.*/, ''
-              size: file.size
-              date: new Date().valueOf()
-              ext: path.extname(file.originalFilename).replace /^\./, ''
-              tags: req.body.tags
-            ndx.extend outobj, req.body
-            callback null, outobj
-            syncCallback 'upload', 
-              user: user
-              obj: outobj
-          rs.on 'error', (e) ->
-            callback e, null
-          encrypt.on 'error', (e) ->
-            console.log e
-          gzip.on 'error', (e) ->
-            console.log e
+            callback 'no file', null
           #outobj
         files = []
         if Object.prototype.toString.call(req.files.file) is '[object Array]'
           files = req.files.file
         else
-          files = [req.files.file]
-        async.map files, saveFile, (err, output) ->
-          res.json output
+          if req.files.file
+            files = [req.files.file]
+        if files.length
+          async.map files, saveFile, (err, output) ->
+            res.json output
     )(ndx.user)
   ndx.app.get '/api/download/:data', ndx.authenticate(), (req, res, next) ->
     ((user) ->

@@ -23,13 +23,14 @@
   async = require('async');
 
   module.exports = function(ndx) {
-    var S3, algorithm, callbacks, doencrypt, dozip, s3Stream, syncCallback, useAWS;
+    var S3, algorithm, awsPrefix, callbacks, doencrypt, dozip, s3Stream, syncCallback, useAWS;
     algorithm = ndx.settings.ENCRYPTION_ALGORITHM || 'aes-256-ctr';
     useAWS = ndx.settings.FILEUPLOAD_AWS || process.env.FILEUPLOAD_AWS;
     AWS.config.bucket = ndx.settings.FILEUPLOAD_AWS_BUCKET || process.env.FILEUPLOAD_AWS_BUCKET || ndx.settings.AWS_BUCKET;
     AWS.config.region = ndx.settings.FILEUPLOAD_AWS_REGION || process.env.FILEUPLOAD_AWS_REGION || ndx.settings.AWS_REGION || 'us-east-1';
     AWS.config.accessKeyId = ndx.settings.FILEUPLOAD_AWS_ID || process.env.FILEUPLOAD_AWS_ID || ndx.settings.AWS_ID;
     AWS.config.secretAccessKey = ndx.settings.FILEUPLOAD_AWS_KEY || process.env.FILEUPLOAD_AWS_KEY || ndx.settings.AWS_KEY;
+    awsPrefix = ndx.settings.FILEUPLOAD_AWS_PREFIX || process.env.FILEUPLOAD_AWS_PREFIX || ndx.settings.AWS_PREFIX || process.env.AWS_PREFIX || '';
     S3 = new AWS.S3();
     s3Stream = require('s3-upload-stream')(S3);
     doencrypt = !ndx.settings.DO_NOT_ENCRYPT;
@@ -50,6 +51,7 @@
       return typeof cb === "function" ? cb() : void 0;
     };
     ndx.app.post('/api/upload', ndx.authenticate(), multiparty(), function(req, res) {
+      console.log('upload');
       return (function(user) {
         var folder, output;
         output = [];
@@ -61,75 +63,83 @@
           var files, saveFile;
           saveFile = function(file, callback) {
             var encrypt, filename, gzip, outpath, rs, st, ws;
-            filename = ndx.generateID(12) + path.extname(file.originalFilename);
-            outpath = path.join(folder, filename);
-            encrypt = crypto.createCipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
-            gzip = zlib.createGzip();
-            rs = fs.createReadStream(file.path);
-            st = null;
-            if (dozip) {
-              st = rs.pipe(gzip);
-            }
-            if (doencrypt) {
-              if (st) {
-                st = st.pipe(encrypt);
-              } else {
-                st = rs.pipe(encrypt);
+            if (file) {
+              filename = ndx.generateID(12) + path.extname(file.originalFilename);
+              outpath = path.join(folder, filename);
+              encrypt = crypto.createCipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
+              gzip = zlib.createGzip();
+              rs = fs.createReadStream(file.path);
+              st = null;
+              if (dozip) {
+                st = rs.pipe(gzip);
               }
-            }
-            if (!st) {
-              st = rs;
-            }
-            ws = null;
-            if (useAWS) {
-              ws = s3Stream.upload({
-                Bucket: AWS.config.bucket,
-                Key: outpath.replace(/\\/g, '/')
+              if (doencrypt) {
+                if (st) {
+                  st = st.pipe(encrypt);
+                } else {
+                  st = rs.pipe(encrypt);
+                }
+              }
+              if (!st) {
+                st = rs;
+              }
+              ws = null;
+              if (useAWS) {
+                ws = s3Stream.upload({
+                  Bucket: AWS.config.bucket,
+                  Key: awsPrefix + outpath.replace(/\\/g, '/')
+                });
+              } else {
+                ws = fs.createWriteStream(outpath);
+              }
+              st.pipe(ws);
+              rs.on('end', function() {
+                var outobj;
+                fs.unlinkSync(file.path);
+                outobj = {
+                  filename: filename,
+                  path: awsPrefix + outpath.replace(/\\/g, '/'),
+                  originalFilename: file.originalFilename,
+                  type: file.type,
+                  basetype: file.type.replace(/\/.*/, ''),
+                  size: file.size,
+                  date: new Date().valueOf(),
+                  ext: path.extname(file.originalFilename).replace(/^\./, ''),
+                  tags: req.body.tags
+                };
+                ndx.extend(outobj, req.body);
+                callback(null, outobj);
+                return syncCallback('upload', {
+                  user: user,
+                  obj: outobj
+                });
+              });
+              rs.on('error', function(e) {
+                return callback(e, null);
+              });
+              encrypt.on('error', function(e) {
+                return console.log(e);
+              });
+              return gzip.on('error', function(e) {
+                return console.log(e);
               });
             } else {
-              ws = fs.createWriteStream(outpath);
+              return callback('no file', null);
             }
-            st.pipe(ws);
-            rs.on('end', function() {
-              var outobj;
-              fs.unlinkSync(file.path);
-              outobj = {
-                filename: filename,
-                path: outpath.replace(/\\/g, '/'),
-                originalFilename: file.originalFilename,
-                type: file.type,
-                basetype: file.type.replace(/\/.*/, ''),
-                size: file.size,
-                date: new Date().valueOf(),
-                ext: path.extname(file.originalFilename).replace(/^\./, ''),
-                tags: req.body.tags
-              };
-              ndx.extend(outobj, req.body);
-              callback(null, outobj);
-              return syncCallback('upload', {
-                user: user,
-                obj: outobj
-              });
-            });
-            rs.on('error', function(e) {
-              return callback(e, null);
-            });
-            encrypt.on('error', function(e) {
-              return console.log(e);
-            });
-            return gzip.on('error', function(e) {
-              return console.log(e);
-            });
           };
           files = [];
           if (Object.prototype.toString.call(req.files.file) === '[object Array]') {
             files = req.files.file;
           } else {
-            files = [req.files.file];
+            if (req.files.file) {
+              files = [req.files.file];
+            }
           }
-          return async.map(files, saveFile, function(err, output) {
-            return res.json(output);
-          });
+          if (files.length) {
+            return async.map(files, saveFile, function(err, output) {
+              return res.json(output);
+            });
+          }
         });
       })(ndx.user);
     });
