@@ -51,7 +51,6 @@
       return typeof cb === "function" ? cb() : void 0;
     };
     ndx.app.post('/api/upload', ndx.authenticate(), multiparty(), function(req, res) {
-      console.log('upload');
       return (function(user) {
         var folder, output;
         output = [];
@@ -62,7 +61,7 @@
         return mkdirp(folder, function(err) {
           var files, saveFile;
           saveFile = function(file, callback) {
-            var encrypt, filename, gzip, outpath, rs, st, ws;
+            var done, encrypt, filename, gzip, outpath, rs, st, ws;
             if (file) {
               filename = ndx.generateID(12) + path.extname(file.originalFilename);
               outpath = path.join(folder, filename);
@@ -93,7 +92,10 @@
                 ws = fs.createWriteStream(outpath);
               }
               st.pipe(ws);
-              rs.on('end', function() {
+              ws.on('error', function(err) {
+                return console.log('write error', err);
+              });
+              done = function() {
                 var outobj;
                 fs.unlinkSync(file.path);
                 outobj = {
@@ -113,7 +115,12 @@
                   user: user,
                   obj: outobj
                 });
-              });
+              };
+              if (useAWS) {
+                ws.on('uploaded', done);
+              } else {
+                ws.on('finish', done);
+              }
               rs.on('error', function(e) {
                 return callback(e, null);
               });

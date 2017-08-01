@@ -18,6 +18,7 @@ module.exports = (ndx) ->
   AWS.config.accessKeyId = ndx.settings.FILEUPLOAD_AWS_ID or process.env.FILEUPLOAD_AWS_ID or ndx.settings.AWS_ID
   AWS.config.secretAccessKey = ndx.settings.FILEUPLOAD_AWS_KEY or process.env.FILEUPLOAD_AWS_KEY or ndx.settings.AWS_KEY
   awsPrefix = ndx.settings.FILEUPLOAD_AWS_PREFIX or process.env.FILEUPLOAD_AWS_PREFIX or ndx.settings.AWS_PREFIX or process.env.AWS_PREFIX or ''
+  #console.log 'AWS config', AWS.config
   S3 = new AWS.S3()
   s3Stream = require('s3-upload-stream') S3
   doencrypt = !ndx.settings.DO_NOT_ENCRYPT
@@ -31,7 +32,6 @@ module.exports = (ndx) ->
         callback obj
     cb?()
   ndx.app.post '/api/upload', ndx.authenticate(), multiparty(), (req, res) ->
-    console.log 'upload'
     ((user) ->
       output = []
       folder = 'uploads'
@@ -59,15 +59,17 @@ module.exports = (ndx) ->
             if useAWS
               ws = s3Stream.upload
                 Bucket: AWS.config.bucket
-                Key: awsPrefix + outpath.replace /\\/g, '/'
+                Key: awsPrefix + outpath.replace(/\\/g, '/')
             else
               ws = fs.createWriteStream outpath
             st.pipe ws
-            rs.on 'end', ->
+            ws.on 'error', (err) ->
+              console.log 'write error', err
+            done = ->
               fs.unlinkSync file.path
               outobj =
                 filename: filename
-                path: awsPrefix + outpath.replace /\\/g, '/'
+                path: awsPrefix + outpath.replace(/\\/g, '/')
                 originalFilename: file.originalFilename
                 type: file.type
                 basetype: file.type.replace /\/.*/, ''
@@ -80,6 +82,10 @@ module.exports = (ndx) ->
               syncCallback 'upload', 
                 user: user
                 obj: outobj
+            if useAWS
+              ws.on 'uploaded', done
+            else
+              ws.on 'finish', done
             rs.on 'error', (e) ->
               callback e, null
             encrypt.on 'error', (e) ->
