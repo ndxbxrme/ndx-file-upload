@@ -56,15 +56,11 @@ module.exports = (ndx) ->
             if not st
               st = rs
             ws = null
-            if useAWS
-              ws = s3Stream.upload
-                Bucket: AWS.config.bucket
-                Key: awsPrefix + outpath.replace(/\\/g, '/')
-            else
-              ws = fs.createWriteStream outpath
+            ws = fs.createWriteStream outpath
             st.pipe ws
             ws.on 'error', (err) ->
               console.log 'write error', err
+              callback err, null
             done = ->
               fs.unlinkSync file.path
               outobj =
@@ -82,16 +78,14 @@ module.exports = (ndx) ->
               syncCallback 'upload', 
                 user: user
                 obj: outobj
-            if useAWS
-              ws.on 'uploaded', done
-            else
-              ws.on 'finish', done
-            rs.on 'error', (e) ->
-              callback e, null
-            encrypt.on 'error', (e) ->
-              console.log e
-            gzip.on 'error', (e) ->
-              console.log e
+            ws.on 'finish', ->
+              done()
+              if useAWS
+                ws = s3Stream.upload
+                  Bucket: AWS.config.bucket
+                  Key: awsPrefix + outpath.replace(/\\/g, '/')
+                rs = fs.createReadStream outpath
+                rs.pipe ws
           else
             callback 'no file', null
           #outobj
@@ -107,21 +101,14 @@ module.exports = (ndx) ->
     )(ndx.user)
   ndx.app.get '/api/download/:data', ndx.authenticate(), (req, res, next) ->
     ((user) ->
-      try
-        document = JSON.parse atob req.params.data
-        mimetype = mime.lookup document.path
-        res.setHeader 'Content-disposition', 'attachment; filename=' + document.filename
-        res.setHeader 'Content-type', mimetype
-        decrypt = crypto.createDecipher algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
-        gunzip = zlib.createGunzip()
-        st = null
-        if useAWS
-          st = S3.getObject
-            Bucket: AWS.config.bucket
-            Key: document.path
-          .createReadStream()
-        else
-          st = fs.createReadStream document.path
+      document = JSON.parse atob req.params.data
+      mimetype = mime.lookup document.path
+      res.setHeader 'Content-disposition', 'attachment; filename=' + document.filename
+      res.setHeader 'Content-type', mimetype
+      decrypt = crypto.createDecipher algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
+      gunzip = zlib.createGunzip()
+      sendFileToRes = ->
+        st = fs.createReadStream document.path
         if doencrypt
           st = st.pipe decrypt
         if dozip
@@ -135,11 +122,23 @@ module.exports = (ndx) ->
           console.log e
         st.on 'end', ->
           syncCallback 'download', 
-            user: ndx.user
+            user: user
             obj: document
-      catch e
-        console.log e
-        next e
+      fs.exists document.path, (fileExists) ->
+        if fileExists
+          sendFileToRes()
+        else
+          if useAWS
+            st = S3.getObject
+              Bucket: AWS.config.bucket
+              Key: document.path
+            .createReadStream()
+            ws = fs.createWriteStream document.path
+            st.pipe ws
+            ws.on 'finish', ->
+              sendFileToRes()
+          else
+            res.end()
     )(ndx.user)
   ndx.fileUpload =
     on: (name, callback) ->

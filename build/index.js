@@ -83,17 +83,11 @@
                 st = rs;
               }
               ws = null;
-              if (useAWS) {
-                ws = s3Stream.upload({
-                  Bucket: AWS.config.bucket,
-                  Key: awsPrefix + outpath.replace(/\\/g, '/')
-                });
-              } else {
-                ws = fs.createWriteStream(outpath);
-              }
+              ws = fs.createWriteStream(outpath);
               st.pipe(ws);
               ws.on('error', function(err) {
-                return console.log('write error', err);
+                console.log('write error', err);
+                return callback(err, null);
               });
               done = function() {
                 var outobj;
@@ -116,19 +110,16 @@
                   obj: outobj
                 });
               };
-              if (useAWS) {
-                ws.on('uploaded', done);
-              } else {
-                ws.on('finish', done);
-              }
-              rs.on('error', function(e) {
-                return callback(e, null);
-              });
-              encrypt.on('error', function(e) {
-                return console.log(e);
-              });
-              return gzip.on('error', function(e) {
-                return console.log(e);
+              return ws.on('finish', function() {
+                done();
+                if (useAWS) {
+                  ws = s3Stream.upload({
+                    Bucket: AWS.config.bucket,
+                    Key: awsPrefix + outpath.replace(/\\/g, '/')
+                  });
+                  rs = fs.createReadStream(outpath);
+                  return rs.pipe(ws);
+                }
               });
             } else {
               return callback('no file', null);
@@ -152,23 +143,16 @@
     });
     ndx.app.get('/api/download/:data', ndx.authenticate(), function(req, res, next) {
       return (function(user) {
-        var decrypt, document, e, error, gunzip, mimetype, st;
-        try {
-          document = JSON.parse(atob(req.params.data));
-          mimetype = mime.lookup(document.path);
-          res.setHeader('Content-disposition', 'attachment; filename=' + document.filename);
-          res.setHeader('Content-type', mimetype);
-          decrypt = crypto.createDecipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
-          gunzip = zlib.createGunzip();
-          st = null;
-          if (useAWS) {
-            st = S3.getObject({
-              Bucket: AWS.config.bucket,
-              Key: document.path
-            }).createReadStream();
-          } else {
-            st = fs.createReadStream(document.path);
-          }
+        var decrypt, document, gunzip, mimetype, sendFileToRes;
+        document = JSON.parse(atob(req.params.data));
+        mimetype = mime.lookup(document.path);
+        res.setHeader('Content-disposition', 'attachment; filename=' + document.filename);
+        res.setHeader('Content-type', mimetype);
+        decrypt = crypto.createDecipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
+        gunzip = zlib.createGunzip();
+        sendFileToRes = function() {
+          var st;
+          st = fs.createReadStream(document.path);
           if (doencrypt) {
             st = st.pipe(decrypt);
           }
@@ -187,15 +171,31 @@
           });
           return st.on('end', function() {
             return syncCallback('download', {
-              user: ndx.user,
+              user: user,
               obj: document
             });
           });
-        } catch (error) {
-          e = error;
-          console.log(e);
-          return next(e);
-        }
+        };
+        return fs.exists(document.path, function(fileExists) {
+          var st, ws;
+          if (fileExists) {
+            return sendFileToRes();
+          } else {
+            if (useAWS) {
+              st = S3.getObject({
+                Bucket: AWS.config.bucket,
+                Key: document.path
+              }).createReadStream();
+              ws = fs.createWriteStream(document.path);
+              st.pipe(ws);
+              return ws.on('finish', function() {
+                return sendFileToRes();
+              });
+            } else {
+              return res.end();
+            }
+          }
+        });
       })(ndx.user);
     });
     return ndx.fileUpload = {
