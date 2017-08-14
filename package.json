@@ -1,6 +1,6 @@
 {
   "name": "ndx-file-upload",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "file uploader for ndx-framework",
   "main": "build/index.js",
   "scripts": {
