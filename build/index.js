@@ -141,7 +141,7 @@
         });
       })(ndx.user);
     });
-    ndx.app.get('/api/download/:data', ndx.authenticate(), function(req, res, next) {
+    ndx.app.get('/api/download/:data', function(req, res, next) {
       return (function(user) {
         var decrypt, document, gunzip, mimetype, sendFileToRes;
         document = JSON.parse(atob(req.params.data));

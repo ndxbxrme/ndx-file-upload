@@ -99,7 +99,7 @@ module.exports = (ndx) ->
           async.map files, saveFile, (err, output) ->
             res.json output
     )(ndx.user)
-  ndx.app.get '/api/download/:data', ndx.authenticate(), (req, res, next) ->
+  ndx.app.get '/api/download/:data', (req, res, next) ->
     ((user) ->
       document = JSON.parse atob req.params.data
       mimetype = mime.lookup document.path
