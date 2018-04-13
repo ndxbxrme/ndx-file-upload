@@ -138,9 +138,6 @@ module.exports = (ndx) ->
       mimetype = mime.lookup document.path
       res.setHeader 'Content-disposition', 'attachment; filename=' + document.filename
       res.setHeader 'Content-type', mimetype
-      ndx.fileUpload.fetchBase64 document.path
-      .then (b64) ->
-        console.log b64
       getReadStream document.path
       .then (st) ->
         st.pipe res

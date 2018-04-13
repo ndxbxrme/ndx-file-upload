@@ -197,9 +197,6 @@
         mimetype = mime.lookup(document.path);
         res.setHeader('Content-disposition', 'attachment; filename=' + document.filename);
         res.setHeader('Content-type', mimetype);
-        ndx.fileUpload.fetchBase64(document.path).then(function(b64) {
-          return console.log(b64);
-        });
         return getReadStream(document.path).then(function(st) {
           st.pipe(res);
           return syncCallback('download', {
