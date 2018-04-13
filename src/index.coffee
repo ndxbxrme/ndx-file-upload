@@ -9,6 +9,7 @@ crypto = require 'crypto'
 zlib = require 'zlib'
 AWS = require 'aws-sdk'
 async = require 'async'
+base64 = require 'base64-stream'
 
 module.exports = (ndx) ->
   algorithm = ndx.settings.ENCRYPTION_ALGORITHM or 'aes-256-ctr'
@@ -99,46 +100,56 @@ module.exports = (ndx) ->
           async.map files, saveFile, (err, output) ->
             res.json output
     )(ndx.user)
-  ndx.app.get '/api/download/:data', (req, res, next) ->
-    ((user) ->
-      document = JSON.parse atob req.params.data
-      mimetype = mime.lookup document.path
-      res.setHeader 'Content-disposition', 'attachment; filename=' + document.filename
-      res.setHeader 'Content-type', mimetype
+  getReadStream = (path) ->
+    new Promise (resolve, reject) ->
       decrypt = crypto.createDecipher algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
       gunzip = zlib.createGunzip()
       sendFileToRes = ->
-        st = fs.createReadStream document.path
+        st = fs.createReadStream path
         if doencrypt
           st = st.pipe decrypt
         if dozip
           st = st.pipe gunzip
-        st.pipe res
+        resolve st
         st.on 'error', (e) ->
-          console.log e
+          reject e
         decrypt.on 'error', (e) ->
-          console.log e
+          reject e
         gunzip.on 'error', (e) ->
-          console.log e
-        st.on 'end', ->
-          syncCallback 'download', 
-            user: user
-            obj: document
-      fs.exists document.path, (fileExists) ->
+          reject e
+      fs.exists path, (fileExists) ->
         if fileExists
           sendFileToRes()
         else
           if useAWS
             st = S3.getObject
               Bucket: AWS.config.bucket
-              Key: document.path
+              Key: path
             .createReadStream()
-            ws = fs.createWriteStream document.path
+            ws = fs.createWriteStream path
             st.pipe ws
             ws.on 'finish', ->
               sendFileToRes()
           else
-            res.end()
+            reject()
+  ndx.app.get '/api/download/:data', (req, res, next) ->
+    ((user) ->
+      document = JSON.parse atob req.params.data
+      mimetype = mime.lookup document.path
+      res.setHeader 'Content-disposition', 'attachment; filename=' + document.filename
+      res.setHeader 'Content-type', mimetype
+      ndx.fileUpload.fetchBase64 document.path
+      .then (b64) ->
+        console.log b64
+      getReadStream document.path
+      .then (st) ->
+        st.pipe res
+        syncCallback 'download', 
+          user: user
+          obj: document
+      , (err) ->
+        console.log err
+        res.end()
     )(ndx.user)
   ndx.fileUpload =
     on: (name, callback) ->
@@ -165,3 +176,15 @@ module.exports = (ndx) ->
         obj:
           filename: filename
           mimetype: mimetype
+    fetchBase64: (path) ->
+      new Promise (resolve, reject) ->
+        getReadStream path
+        .then (st) ->
+          st = st.pipe(base64.encode())
+          output = ''
+          st.on 'data', (data) ->
+            output += data.toString('utf-8')
+          st.on 'error', (err) ->
+            reject err
+          st.on 'end', ->
+            resolve output

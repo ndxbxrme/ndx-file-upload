@@ -1,6 +1,6 @@
 (function() {
   'use strict';
-  var AWS, async, atob, crypto, fs, mime, mkdirp, multiparty, path, zlib;
+  var AWS, async, atob, base64, crypto, fs, mime, mkdirp, multiparty, path, zlib;
 
   fs = require('fs');
 
@@ -22,8 +22,10 @@
 
   async = require('async');
 
+  base64 = require('base64-stream');
+
   module.exports = function(ndx) {
-    var S3, algorithm, awsPrefix, callbacks, doencrypt, dozip, s3Stream, syncCallback, useAWS;
+    var S3, algorithm, awsPrefix, callbacks, doencrypt, dozip, getReadStream, s3Stream, syncCallback, useAWS;
     algorithm = ndx.settings.ENCRYPTION_ALGORITHM || 'aes-256-ctr';
     useAWS = ndx.settings.FILEUPLOAD_AWS || process.env.FILEUPLOAD_AWS;
     AWS.config.bucket = ndx.settings.FILEUPLOAD_AWS_BUCKET || process.env.FILEUPLOAD_AWS_BUCKET || ndx.settings.AWS_BUCKET;
@@ -141,42 +143,32 @@
         });
       })(ndx.user);
     });
-    ndx.app.get('/api/download/:data', function(req, res, next) {
-      return (function(user) {
-        var decrypt, document, gunzip, mimetype, sendFileToRes;
-        document = JSON.parse(atob(req.params.data));
-        mimetype = mime.lookup(document.path);
-        res.setHeader('Content-disposition', 'attachment; filename=' + document.filename);
-        res.setHeader('Content-type', mimetype);
+    getReadStream = function(path) {
+      return new Promise(function(resolve, reject) {
+        var decrypt, gunzip, sendFileToRes;
         decrypt = crypto.createDecipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
         gunzip = zlib.createGunzip();
         sendFileToRes = function() {
           var st;
-          st = fs.createReadStream(document.path);
+          st = fs.createReadStream(path);
           if (doencrypt) {
             st = st.pipe(decrypt);
           }
           if (dozip) {
             st = st.pipe(gunzip);
           }
-          st.pipe(res);
+          resolve(st);
           st.on('error', function(e) {
-            return console.log(e);
+            return reject(e);
           });
           decrypt.on('error', function(e) {
-            return console.log(e);
+            return reject(e);
           });
-          gunzip.on('error', function(e) {
-            return console.log(e);
-          });
-          return st.on('end', function() {
-            return syncCallback('download', {
-              user: user,
-              obj: document
-            });
+          return gunzip.on('error', function(e) {
+            return reject(e);
           });
         };
-        return fs.exists(document.path, function(fileExists) {
+        return fs.exists(path, function(fileExists) {
           var st, ws;
           if (fileExists) {
             return sendFileToRes();
@@ -184,17 +176,39 @@
             if (useAWS) {
               st = S3.getObject({
                 Bucket: AWS.config.bucket,
-                Key: document.path
+                Key: path
               }).createReadStream();
-              ws = fs.createWriteStream(document.path);
+              ws = fs.createWriteStream(path);
               st.pipe(ws);
               return ws.on('finish', function() {
                 return sendFileToRes();
               });
             } else {
-              return res.end();
+              return reject();
             }
           }
+        });
+      });
+    };
+    ndx.app.get('/api/download/:data', function(req, res, next) {
+      return (function(user) {
+        var document, mimetype;
+        document = JSON.parse(atob(req.params.data));
+        mimetype = mime.lookup(document.path);
+        res.setHeader('Content-disposition', 'attachment; filename=' + document.filename);
+        res.setHeader('Content-type', mimetype);
+        ndx.fileUpload.fetchBase64(document.path).then(function(b64) {
+          return console.log(b64);
+        });
+        return getReadStream(document.path).then(function(st) {
+          st.pipe(res);
+          return syncCallback('download', {
+            user: user,
+            obj: document
+          });
+        }, function(err) {
+          console.log(err);
+          return res.end();
         });
       })(ndx.user);
     });
@@ -231,6 +245,24 @@
             filename: filename,
             mimetype: mimetype
           }
+        });
+      },
+      fetchBase64: function(path) {
+        return new Promise(function(resolve, reject) {
+          return getReadStream(path).then(function(st) {
+            var output;
+            st = st.pipe(base64.encode());
+            output = '';
+            st.on('data', function(data) {
+              return output += data.toString('utf-8');
+            });
+            st.on('error', function(err) {
+              return reject(err);
+            });
+            return st.on('end', function() {
+              return resolve(output);
+            });
+          });
         });
       }
     };
