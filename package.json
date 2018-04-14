@@ -1,6 +1,6 @@
 {
   "name": "ndx-file-upload",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "file uploader for ndx-framework",
   "main": "build/index.js",
   "scripts": {
@@ -25,7 +25,7 @@
     "load-grunt-tasks": "^3.5.2"
   },
   "dependencies": {
-    "async": "^2.4.1",
+    "async": "^2.6.0",
     "atob": "^2.0.3",
     "aws-sdk": "^2.49.0",
     "base64-stream": "^0.1.3",

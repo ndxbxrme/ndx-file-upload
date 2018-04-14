@@ -102,6 +102,7 @@ module.exports = (ndx) ->
     )(ndx.user)
   getReadStream = (path) ->
     new Promise (resolve, reject) ->
+      console.log algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
       decrypt = crypto.createDecipher algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
       gunzip = zlib.createGunzip()
       sendFileToRes = ->
@@ -132,6 +133,18 @@ module.exports = (ndx) ->
               sendFileToRes()
           else
             reject()
+  fetchBase64 = (path) ->
+    new Promise (resolve, reject) ->
+      getReadStream path
+      .then (st) ->
+        b64 = st.pipe(base64.encode())
+        output = ''
+        b64.on 'data', (data) ->
+          output += data.toString('utf-8')
+        b64.on 'error', (err) ->
+          reject err
+        b64.on 'end', ->
+          resolve output
   ndx.app.get '/api/download/:data', (req, res, next) ->
     ((user) ->
       document = JSON.parse atob req.params.data
@@ -145,7 +158,6 @@ module.exports = (ndx) ->
           user: user
           obj: document
       , (err) ->
-        console.log err
         res.end()
     )(ndx.user)
   ndx.fileUpload =
@@ -173,15 +185,4 @@ module.exports = (ndx) ->
         obj:
           filename: filename
           mimetype: mimetype
-    fetchBase64: (path) ->
-      new Promise (resolve, reject) ->
-        getReadStream path
-        .then (st) ->
-          st = st.pipe(base64.encode())
-          output = ''
-          st.on 'data', (data) ->
-            output += data.toString('utf-8')
-          st.on 'error', (err) ->
-            reject err
-          st.on 'end', ->
-            resolve output
+    fetchBase64: fetchBase64

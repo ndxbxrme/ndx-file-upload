@@ -25,7 +25,7 @@
   base64 = require('base64-stream');
 
   module.exports = function(ndx) {
-    var S3, algorithm, awsPrefix, callbacks, doencrypt, dozip, getReadStream, s3Stream, syncCallback, useAWS;
+    var S3, algorithm, awsPrefix, callbacks, doencrypt, dozip, fetchBase64, getReadStream, s3Stream, syncCallback, useAWS;
     algorithm = ndx.settings.ENCRYPTION_ALGORITHM || 'aes-256-ctr';
     useAWS = ndx.settings.FILEUPLOAD_AWS || process.env.FILEUPLOAD_AWS;
     AWS.config.bucket = ndx.settings.FILEUPLOAD_AWS_BUCKET || process.env.FILEUPLOAD_AWS_BUCKET || ndx.settings.AWS_BUCKET;
@@ -146,6 +146,7 @@
     getReadStream = function(path) {
       return new Promise(function(resolve, reject) {
         var decrypt, gunzip, sendFileToRes;
+        console.log(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
         decrypt = crypto.createDecipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
         gunzip = zlib.createGunzip();
         sendFileToRes = function() {
@@ -190,6 +191,24 @@
         });
       });
     };
+    fetchBase64 = function(path) {
+      return new Promise(function(resolve, reject) {
+        return getReadStream(path).then(function(st) {
+          var b64, output;
+          b64 = st.pipe(base64.encode());
+          output = '';
+          b64.on('data', function(data) {
+            return output += data.toString('utf-8');
+          });
+          b64.on('error', function(err) {
+            return reject(err);
+          });
+          return b64.on('end', function() {
+            return resolve(output);
+          });
+        });
+      });
+    };
     ndx.app.get('/api/download/:data', function(req, res, next) {
       return (function(user) {
         var document, mimetype;
@@ -204,7 +223,6 @@
             obj: document
           });
         }, function(err) {
-          console.log(err);
           return res.end();
         });
       })(ndx.user);
@@ -244,24 +262,7 @@
           }
         });
       },
-      fetchBase64: function(path) {
-        return new Promise(function(resolve, reject) {
-          return getReadStream(path).then(function(st) {
-            var output;
-            st = st.pipe(base64.encode());
-            output = '';
-            st.on('data', function(data) {
-              return output += data.toString('utf-8');
-            });
-            st.on('error', function(err) {
-              return reject(err);
-            });
-            return st.on('end', function() {
-              return resolve(output);
-            });
-          });
-        });
-      }
+      fetchBase64: fetchBase64
     };
   };
 
