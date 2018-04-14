@@ -146,7 +146,6 @@
     getReadStream = function(path) {
       return new Promise(function(resolve, reject) {
         var decrypt, gunzip, sendFileToRes;
-        console.log(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
         decrypt = crypto.createDecipher(algorithm, ndx.settings.ENCRYPTION_KEY || ndx.settings.SESSION_SECRET || '5random7493nonsens!e');
         gunzip = zlib.createGunzip();
         sendFileToRes = function() {

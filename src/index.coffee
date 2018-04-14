@@ -102,7 +102,6 @@ module.exports = (ndx) ->
     )(ndx.user)
   getReadStream = (path) ->
     new Promise (resolve, reject) ->
-      console.log algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
       decrypt = crypto.createDecipher algorithm, ndx.settings.ENCRYPTION_KEY or ndx.settings.SESSION_SECRET or '5random7493nonsens!e'
       gunzip = zlib.createGunzip()
       sendFileToRes = ->
