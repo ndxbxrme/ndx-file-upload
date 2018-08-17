@@ -169,20 +169,25 @@
           });
         };
         return fs.exists(path, function(fileExists) {
-          var st, ws;
+          var e, error, st, ws;
           if (fileExists) {
             return sendFileToRes();
           } else {
             if (useAWS) {
-              st = S3.getObject({
-                Bucket: AWS.config.bucket,
-                Key: path
-              }).createReadStream();
-              ws = fs.createWriteStream(path);
-              st.pipe(ws);
-              return ws.on('finish', function() {
-                return sendFileToRes();
-              });
+              try {
+                st = S3.getObject({
+                  Bucket: AWS.config.bucket,
+                  Key: path
+                }).createReadStream();
+                ws = fs.createWriteStream(path);
+                st.pipe(ws);
+                return ws.on('finish', function() {
+                  return sendFileToRes();
+                });
+              } catch (error) {
+                e = error;
+                return reject();
+              }
             } else {
               return reject();
             }

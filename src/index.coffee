@@ -122,14 +122,17 @@ module.exports = (ndx) ->
           sendFileToRes()
         else
           if useAWS
-            st = S3.getObject
-              Bucket: AWS.config.bucket
-              Key: path
-            .createReadStream()
-            ws = fs.createWriteStream path
-            st.pipe ws
-            ws.on 'finish', ->
-              sendFileToRes()
+            try
+              st = S3.getObject
+                Bucket: AWS.config.bucket
+                Key: path
+              .createReadStream()
+              ws = fs.createWriteStream path
+              st.pipe ws
+              ws.on 'finish', ->
+                sendFileToRes()
+            catch e
+              reject()
           else
             reject()
   fetchBase64 = (path) ->
